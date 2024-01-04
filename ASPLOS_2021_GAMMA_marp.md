@@ -1,4 +1,16 @@
-# ASPLOS_2021_GAMMA
+---
+marp: true
+theme: yoimiya
+paginate: true
+headingDivider: [2,3]
+footer: \ *石晋* *2024.01.03*
+class: hugetext
+---
+
+# Gamma: Leveraging Gustavson’s Algorithm to Accelerate Sparse Matrix Multiplication
+
+<!-- _class: cover_a-->
+<!-- _paginate: "" -->
 
 ## Significance
 
@@ -8,18 +20,22 @@
 
 问题特性：
 
-1. 运算较少
-2. 访存随机
+- 运算较少
+- 访存随机
 
 Gustavson算法：行平稳的数据流，改善访存，但存在不规则的数据重用。
 
 ## Contribution
 
-1. 使用了之前被错过的Gustavson算法
-2. 对于不规则的数据重用构建了新的缓存结构
-3. 对于特定病态数据的预处理技术
+- 使用了之前被错过的Gustavson算法
+- 对于不规则的数据重用构建了新的缓存结构
+- 对于特定数据的预处理技术
 
 ## Details
+
+<!-- _class: trans -->
+<!-- _footer: "" -->
+<!-- _paginate: "" -->
 
 ### 压缩存储结构
 
@@ -33,22 +49,28 @@ Gustavson算法：行平稳的数据流，改善访存，但存在不规则的�
 
 ### 数据流
 
+<!-- _class: cols-2-46 hugetext-->
+
 - 内积：良好的输出重用性；输入可能无效
 - 外积：良好的输入重用性；输出难以组合
 - Gustavson：行平稳
 
-![image-20240103154054530](./.ASPLOS_2021_GAMMA.assets/image-20240103154054530.png)
+<div class=rimg>
+
+![#c](./.ASPLOS_2021_GAMMA.assets/image-20240103154054530.png)
+
+</div>
 
 ### 行重排预处理
 
 矩阵A并行的行尽可能多的重用矩阵B中的行。
 
-算法：维护一个优先队列，保存待处理的A的行 所需要的 但未被缓存的行。
+算法：维护一个优先队列，保存待处理的所有A行 所需要的 但未被缓存的行数。
 
 改进：对于非零元素较多的A的行进行拆分，以适应行复用及缓存空间的大小。
 
 ## Evaluation
 
-1. 原文还有芯片设计相关的细节
-2. 提升性能的重点为优化访存（计算与缓存）
-3. 针对性能/存储较差的芯片进行的稀疏矩阵乘法优化，但有学习的价值。
+- 原文还有芯片设计相关的细节
+- 提升性能的重点为优化访存（计算与缓存）
+- 针对性能/存储较差的芯片进行的稀疏矩阵乘法优化，但有学习的价值。
