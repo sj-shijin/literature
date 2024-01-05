@@ -10,34 +10,34 @@
 
   主线程：将剩余所有行平均分配给所有线程。
 
-    线程函数：
-    
-    ```c++
-    static void
-    find_pvt_rows_cpu(void* dummy) {
-        fpvt_arg* arg = (fpvt_arg*) dummy;
-    
-        uint64_t count = 0;
-        for(uint64_t i = arg->start; i < arg->end; ++i) {
-            uint64_t* const row = rmac_row(arg->sys, i);
-            if( drm_at(row, arg->col_idx) ) {
-                arg->local_indices[count++] = i;
-            }
-        }
-    
-        if(count) {
-            // copy the local indices into global one
-            pthread_mutex_lock(arg->index_lock);
-    
-            uint64_t offset = *(arg->index_offset);
-            *(arg->index_offset) += count;
-    
-            pthread_mutex_unlock(arg->index_lock);
-    
-            memcpy(arg->indices + offset, arg->local_indices, sizeof(uint32_t) * count);
-        }
-    }
-    ```
+  线程函数：
+
+  ```c++
+  static void
+  find_pvt_rows_cpu(void* dummy) {
+      fpvt_arg* arg = (fpvt_arg*) dummy;
+
+      uint64_t count = 0;
+      for(uint64_t i = arg->start; i < arg->end; ++i) {
+          uint64_t* const row = rmac_row(arg->sys, i);
+          if( drm_at(row, arg->col_idx) ) {
+              arg->local_indices[count++] = i;
+          }
+      }
+
+      if(count) {
+          // copy the local indices into global one
+          pthread_mutex_lock(arg->index_lock);
+
+          uint64_t offset = *(arg->index_offset);
+          *(arg->index_offset) += count;
+
+          pthread_mutex_unlock(arg->index_lock);
+
+          memcpy(arg->indices + offset, arg->local_indices, sizeof(uint32_t) * count);
+      }
+  }
+  ```
 
 - 多线程进行行约化
 
