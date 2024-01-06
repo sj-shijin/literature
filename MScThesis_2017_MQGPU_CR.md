@@ -2,6 +2,18 @@
 
 > [mqsolver](https://github.com/kcning/mqsolver)
 
+## 流程
+
+```mermaid
+stateDiagram-v2
+	[*] --> sys : simp_sys 约化平方项
+	sys --> mac : 
+	mac --> reduc_mac : mac_calc_rmac
+	reduc_mac --> subsys : rmac_elim_gpu+pick_subsys
+```
+
+
+
 ## rmac.cu/rmac_elim_cpu
 
 对约化后的macaulay矩阵（稠密）进行cpu多线程高斯消元。
@@ -147,3 +159,9 @@
 在高斯消元之后，随机选择32个方程作为子系统进行求解。
 
 在gpu计算可行解，在cpu进行验证。
+
+将剩余的
+
+```
+```
+
