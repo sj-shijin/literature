@@ -1,24 +1,21 @@
+---
+marp: true
+theme: yoimiya
+paginate: true
+headingDivider: [2,3]
+footer: \ *石晋* *2024.01.06*
+---
+
 # Code Review
 
-> [mqsolver](https://github.com/kcning/mqsolver)
+<!-- _class: cover_a-->
+<!-- _paginate: "" -->
 
 ## 基本流程
 
 ```mermaid
 graph LR
-    sys --> mac --> rmac --> ge --> subsys --> bf --> sol
-    subgraph ge [gpu 高斯消元]
-        direction TB
-        fd[寻找主元行并记录] --> elim[消元] --> swap[行交换]
-    end
-    subgraph bf [枚举求解]
-        direction TB
-        sf[cpu枚举] --> lsys[构建线性系统] --> bft --> ver[sys验证]
-        subgraph bft [gpu线程号枚举]
-            direction TB
-             init[初始化] --> tf[线程内枚举] --> bge[按列的位高斯消元] -- 有解 --> subver[subsys验证]
-        end
-    end
+    sys --> mac --> rmac -- gpu 高斯消元 --> subsys -- 枚举求解 --> sol
 ```
 
 ## rmac.cu/rmac_elim_cpu
@@ -29,13 +26,13 @@ graph LR
 
   主线程：将剩余所有行平均分配给所有线程。
 
+---
+
   线程函数：
 
   ```c++
-  static void
-      find_pvt_rows_cpu(void* dummy) {
+  static void find_pvt_rows_cpu(void* dummy) {
       fpvt_arg* arg = (fpvt_arg*) dummy;
-
       uint64_t count = 0;
       for(uint64_t i = arg->start; i < arg->end; ++i) {
           uint64_t* const row = rmac_row(arg->sys, i);
@@ -43,20 +40,18 @@ graph LR
               arg->local_indices[count++] = i;
           }
       }
-
       if(count) {
           // copy the local indices into global one
           pthread_mutex_lock(arg->index_lock);
-
           uint64_t offset = *(arg->index_offset);
           *(arg->index_offset) += count;
-
           pthread_mutex_unlock(arg->index_lock);
-
           memcpy(arg->indices + offset, arg->local_indices, sizeof(uint32_t) * count);
       }
   }
   ```
+  
+---
 
 - 多线程进行行约化
 
@@ -81,8 +76,6 @@ graph LR
 
 ## rmac.cu/rmac_elim_gpu
 
-对约化后的macaulay矩阵（稠密）进行gpu多线程高斯消元。
-
 - 初始化
 
   ```c++
@@ -96,7 +89,6 @@ graph LR
   static __global__ void
   rmac_elim_init(uint64_t* const sys, uint64_t** rows, uint32_t* row_indices,
                  const uint32_t eq_num, uint32_t slot_num) {
-  
       const uint32_t tid = global_tid();
       if(tid < eq_num) {
           rows[tid] = sys + tid * slot_num;
@@ -105,20 +97,18 @@ graph LR
   }
   ```
 
+---
+
 - 寻找主元行
   每行对应一个线程
 
   ```c++
-  static __global__ void
-  find_pvt_rows(uint64_t** __restrict__ rows, const uint32_t eq_num,
-                const uint32_t start, const uint32_t col_idx,
-                uint32_t* const __restrict__ indices,
-                uint32_t* const __restrict__ rcount) {
-  
+  static __global__ void find_pvt_rows(uint64_t** __restrict__ rows, 
+  const uint32_t eq_num, const uint32_t start, const uint32_t col_idx, 
+  uint32_t* const __restrict__ indices, uint32_t* const __restrict__ rcount) {
       const uint32_t tid = global_tid();
       if(start <= tid && tid < eq_num) {
           uint64_t* row = rows[tid];
-              
           // check the target monomial in the row
           if( drm_at(row, col_idx) ) {
               indices[atomicAdd(rcount, 1)] = tid;
@@ -127,29 +117,24 @@ graph LR
   }
   ```
 
+---
+
 - 进行行约化
 
   每列（64位）对应一个线程
 
-  此处的共享内存没有意义，应使用==寄存器==。
+  此处的共享内存没有意义，应使用寄存器。
 
   ```c++
-  static __global__ void
-  reduc_rows(uint64_t** __restrict__ rows, const uint32_t slot_num,
-             const uint32_t start, uint32_t* const __restrict__ indices,
-             const uint32_t rcount) {
-  
+  static __global__ void reduc_rows(uint64_t** __restrict__ rows, const uint32_t slot_num, 
+  const uint32_t start, uint32_t* const __restrict__ indices, const uint32_t rcount) {
       extern __shared__ uint64_t smem[];
       const uint32_t tid = global_tid();
-  
       if(start + tid < slot_num) {
           uint64_t* src = rows[indices[0]];
-  
           // copy src into shared memory
           smem[threadIdx.x] = src[start + tid];
-  
           // no need to sync
-  
           // for each rows below
           for(uint32_t i = 1; i < rcount; ++i) {
               uint64_t* dst = rows[indices[i]];
@@ -165,6 +150,15 @@ graph LR
 
 在高斯消元后保留64个方程作为子系统（非线性）。
 
+```mermaid
+graph LR
+    sf[cpu枚举] --> lsys[构建线性系统] --> bft --> ver[sys验证]
+    subgraph bft [gpu线程号枚举]
+        direction LR
+        init[初始化] --> tf[线程内枚举] --> bge[按列的位高斯消元] -- 有解 --> subver[subsys验证]
+    end
+```
+
 - cpu枚举
 
   - 选择线性方程（最多32个），非线性方程作为subsys的验证
@@ -173,6 +167,8 @@ graph LR
 - gpu枚举
 
   - 初始化：格雷码枚举顺序（线程内枚举）的剩余变量系数的偏导数（变量的差），为了快速的获得高斯消元数据。
+
+---
 
   - 按列的位高斯消元（以3个变量为例）：
     $$
@@ -213,7 +209,9 @@ graph LR
     \end{bmatrix}
     $$
 
-    ```c++
+使用python生成的代码，通过include嵌入。
+
+```c++
     uint32_t rmask = ~0x0U;
     {
         uint32_t tmp = lsys0 & rmask;
@@ -246,12 +244,5 @@ graph LR
             lsys3 ^= mask & (((lsys3 >> piv) & 0x1U) ? ~0x0U : 0x0U);
     }
     solvable = !(lsys3 & rmask);
-    ```
+```
 
-    有解时变量取值：
-
-    ```c++
-    sol |= ( (lsys3 >> ctz(lsys0)) & 0x1U ) << 0;
-    sol |= ( (lsys3 >> ctz(lsys1)) & 0x1U ) << 1;
-    sol |= ( (lsys3 >> ctz(lsys2)) & 0x1U ) << 2;
-    ```
