@@ -2,17 +2,24 @@
 
 > [mqsolver](https://github.com/kcning/mqsolver)
 
-## 流程
+## 基本流程
 
 ```mermaid
-stateDiagram-v2
-	[*] --> sys : simp_sys 约化平方项
-	sys --> mac : 
-	mac --> reduc_mac : mac_calc_rmac
-	reduc_mac --> subsys : rmac_elim_gpu+pick_subsys
+graph LR
+    sys --> mac --> rmac --> ge --> subsys --> bf --> sol
+    subgraph ge [gpu 高斯消元]
+        direction TB
+        fd[寻找主元行并记录] --> elim[消元] --> swap[行交换]
+    end
+    subgraph bf [枚举求解]
+        direction TB
+        sf[cpu枚举] --> lsys[构建线性系统] --> bft --> ver[sys验证]
+        subgraph bft [gpu线程号枚举]
+            direction TB
+             init[初始化] --> tf[线程内枚举] --> bge[按列的位高斯消元] -- 有解 --> subver[subsys验证]
+        end
+    end
 ```
-
-
 
 ## rmac.cu/rmac_elim_cpu
 
@@ -26,7 +33,7 @@ stateDiagram-v2
 
   ```c++
   static void
-  find_pvt_rows_cpu(void* dummy) {
+      find_pvt_rows_cpu(void* dummy) {
       fpvt_arg* arg = (fpvt_arg*) dummy;
 
       uint64_t count = 0;
@@ -80,9 +87,9 @@ stateDiagram-v2
 
   ```c++
   // 偏好更多的共享内存
-  cudaFuncSetCacheConfig(reduc_rows, cudaFuncCachePreferShared));
+  cudaFuncSetCacheConfig(reduc_rows, cudaFuncCachePreferShared);
   // 修改Bank模式 （可选4Byte或8Byte）
-  cudaFuncSetSharedMemConfig(reduc_rows, cudaSharedMemBankSizeEightByte));
+  cudaFuncSetSharedMemConfig(reduc_rows, cudaSharedMemBankSizeEightByte);
   ```
 
   ```c++
@@ -156,12 +163,95 @@ stateDiagram-v2
 
 ## mqsolver.cu/bf_subsys
 
-在高斯消元之后，随机选择32个方程作为子系统进行求解。
+在高斯消元后保留64个方程作为子系统（非线性）。
 
-在gpu计算可行解，在cpu进行验证。
+- cpu枚举
 
-将剩余的
+  - 选择线性方程（最多32个），非线性方程作为subsys的验证
+  - 改变存储方式（列），一列保存在一个u32中
 
-```
-```
+- gpu枚举
 
+  - 初始化：格雷码枚举顺序（线程内枚举）的剩余变量系数的偏导数（变量的差），为了快速的获得高斯消元数据。
+
+  - 按列的位高斯消元（以3个变量为例）：
+    $$
+    \begin{bmatrix}
+    mask & x_1 & x_2 & x_3 & b \\
+    1 & 0 & 1 & 1 & 0 \\
+    1 & 1 & 0 & 0 & 1 \\
+    1 & 0 & 1 & 0 & 0 \\
+    1 & 1 & 0 & 0 & 1 \\
+    1 & 0 & 0 & 1 & 1
+    \end{bmatrix}
+    \to
+    \begin{bmatrix}
+    mask & x_1 & x_2 & x_3 & b \\
+    1 & 0 & 1 & 1 & 0 \\
+    0 & 1 & 0 & 0 & 1 \\
+    1 & 0 & 1 & 0 & 0 \\
+    1 & 0 & 0 & 0 & 0 \\
+    1 & 0 & 0 & 1 & 1
+    \end{bmatrix}
+    \to
+    \begin{bmatrix}
+    mask & x_1 & x_2 & x_3 & b \\
+    0 & 0 & 1 & 1 & 0 \\
+    0 & 1 & 0 & 0 & 1 \\
+    1 & 0 & 0 & 1 & 0 \\
+    1 & 0 & 0 & 0 & 0 \\
+    1 & 0 & 0 & 1 & 1
+    \end{bmatrix}
+    \to
+    \begin{bmatrix}
+    mask & x_1 & x_2 & x_3 & b \\
+    0 & 0 & 1 & 1 & 0 \\
+    0 & 1 & 0 & 0 & 1 \\
+    0 & 0 & 0 & 1 & 0 \\
+    1 & 0 & 0 & 0 & 0 \\
+    1 & 0 & 0 & 0 & 1
+    \end{bmatrix}
+    $$
+
+    ```c++
+    uint32_t rmask = ~0x0U;
+    {
+        uint32_t tmp = lsys0 & rmask;
+        uint32_t sf = (!tmp) ? 0x0U : ~0x0U;
+        uint32_t piv = ctz(tmp);
+        rmask ^= (0x1U << piv) & sf;
+        uint32_t mask = (lsys0 ^ (0x1U << piv) ) & sf;
+        lsys0 ^= mask;
+            lsys1 ^= mask & (((lsys1 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+            lsys2 ^= mask & (((lsys2 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+            lsys3 ^= mask & (((lsys3 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+    }
+    {
+        uint32_t tmp = lsys1 & rmask;
+        uint32_t sf = (!tmp) ? 0x0U : ~0x0U;
+        uint32_t piv = ctz(tmp);
+        rmask ^= (0x1U << piv) & sf;
+        uint32_t mask = (lsys1 ^ (0x1U << piv) ) & sf;
+        lsys1 ^= mask;
+            lsys2 ^= mask & (((lsys2 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+            lsys3 ^= mask & (((lsys3 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+    }
+    {
+        uint32_t tmp = lsys2 & rmask;
+        uint32_t sf = (!tmp) ? 0x0U : ~0x0U;
+        uint32_t piv = ctz(tmp);
+        rmask ^= (0x1U << piv) & sf;
+        uint32_t mask = (lsys2 ^ (0x1U << piv) ) & sf;
+        lsys2 ^= mask;
+            lsys3 ^= mask & (((lsys3 >> piv) & 0x1U) ? ~0x0U : 0x0U);
+    }
+    solvable = !(lsys3 & rmask);
+    ```
+
+    有解时变量取值：
+
+    ```c++
+    sol |= ( (lsys3 >> ctz(lsys0)) & 0x1U ) << 0;
+    sol |= ( (lsys3 >> ctz(lsys1)) & 0x1U ) << 1;
+    sol |= ( (lsys3 >> ctz(lsys2)) & 0x1U ) << 2;
+    ```
