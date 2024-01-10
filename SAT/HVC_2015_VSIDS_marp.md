@@ -1,3 +1,15 @@
+---
+marp: true
+theme: yoimiya
+paginate: true
+headingDivider: [2,3]
+footer: \ *石晋* *2024.01.06*
+math: mathjax
+---
+
+<!-- _class: cover_a-->
+<!-- _paginate: "" -->
+
 # VSIDS
 
 ## Significance
