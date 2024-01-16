@@ -1,8 +1,19 @@
+---
+marp: true
+theme: yoimiya
+paginate: true
+headingDivider: [2,3]
+footer: \ *石晋* *2024.01.16*
+math: mathjax
+---
+
+<!-- _class: cover_a-->
+<!-- _paginate: "" -->
+<!-- _footer: "" -->
+
 # Efficient Stepping Algorithms and Implementations for Parallel Shortest Paths
 
 SPAA 2021
-
-[Slides](./SPAA_2021_Parallel%20Shortest%20Paths_marp.html)
 
 ## 总结
 
@@ -49,43 +60,61 @@ while Q.size() > 0 :
 
   ![锦标赛树](./_SPAA_2021_Parallel%20Shortest%20Paths.assets/锦标赛树.png)
 
-  ```python
-  def _mark(id, newflag):
-    t = T.leaf(id)
-    t.inQ = newflag
-    while t != T.root and TestAndSet(t.parent.renew, newflag) :
-      t = t.parent
-  
-  def _sync(t):
-    if t.is_leaf() :
-      return Q[t.id] if t.inQ else +inf
-    if t.renew == 0 :
-      return t.k
-    t.renew = 0
-    leftKey, rightKey = _sync(t.left), _sync(t.right) #parallel
-    t.k = min(leftKey, rightKey)
-    return t.k
-  
-  def _extract_from(theta, t):
-    if t.is_leaf() :
-      if Q[t.id] <= theta :
-        mark(t.id, 0)
-        return [t.id]
-      return []
-    if t.k > theta :
-      return []
-    leftSeq, rightSeq = _extractfrom(theta, t.left), _extract_from(theta, t.right) #parallel
-    return leftSeq + rightSeq
-  
-  def update(id):
-    _mark(id, 1)
-  
-  def extract(theta):
-    _sync(T.root)
-    return _extract_from(theta, T.root)
-  ```
+---
 
-- 在实现中以树状数组形式存储
+<!-- _class: cols-2 -->
+
+基于树存储的LAB-PQ，展示原理
+<div class=ldiv>
+
+```python
+def _mark(id, newflag):
+  t = T.leaf(id)
+  t.inQ = newflag
+  while t != T.root and 
+      TestAndSet(t.parent.renew, newflag) :
+    t = t.parent
+
+def _sync(t):
+  if t.is_leaf() :
+    return Q[t.id] if t.inQ else +inf
+  if t.renew == 0 :
+    return t.k
+  t.renew = 0
+  leftKey, rightKey = _sync(t.left),
+  _sync(t.right) #parallel
+  t.k = min(leftKey, rightKey)
+  return t.k
+```
+
+</div>
+
+<div class=rdiv>
+
+```python
+def _extract_from(theta, t):
+  if t.is_leaf() :
+    if Q[t.id] <= theta :
+      mark(t.id, 0)
+      return [t.id]
+    return []
+  if t.k > theta :
+    return []
+  leftSeq, rightSeq = _extractfrom(theta, t.left),
+        _extract_from(theta, t.right) #parallel
+  return leftSeq + rightSeq
+
+def update(id):
+  _mark(id, 1)
+
+def extract(theta):
+  _sync(T.root)
+  return _extract_from(theta, T.root)
+```
+
+具体实现时采用树状数组。
+
+</div>
 
 ## 实现细节优化
 
