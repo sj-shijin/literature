@@ -1,4 +1,10 @@
-# VSIDS
+# Understanding VSIDS Branching Heuristics in Conﬂict-Driven Clause-Learning SAT Solvers
+
+HVC 2015
+
+[Paper](./HVC_2015_VSIDS.pdf)
+
+[Sildes](./HVC_2015_VSIDS_marp.html)
 
 ## Significance
 

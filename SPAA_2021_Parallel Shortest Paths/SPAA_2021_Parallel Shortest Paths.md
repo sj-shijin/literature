@@ -2,6 +2,8 @@
 
 SPAA 2021
 
+[Paper](./SPAA_2021_Parallel%20Shortest%20Paths.pdf)
+
 [Slides](./SPAA_2021_Parallel%20Shortest%20Paths_marp.html)
 
 ## 总结
