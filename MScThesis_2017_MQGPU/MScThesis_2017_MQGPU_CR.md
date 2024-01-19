@@ -1,6 +1,10 @@
 # Code Review
 
-> [mqsolver](https://github.com/kcning/mqsolver)
+[mqsolver](https://github.com/kcning/mqsolver)
+
+[paper](./MScThesis_2017_MQGPU.pdf)
+
+[sildes](./MScThesis_2017_MQGPU_CR_marp_mmd.html)
 
 ## 基本流程
 
