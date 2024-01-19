@@ -171,6 +171,7 @@ graph LR
 ---
 
   - 按列的位高斯消元（以3个变量为例）：
+
     $$
     \begin{bmatrix}
     mask & x_1 & x_2 & x_3 & b \\
