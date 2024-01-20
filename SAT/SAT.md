@@ -1,4 +1,6 @@
-# SAT
+---
+title: "SAT"
+---
 
 [CDCL](https://cse442-17f.github.io/Conflict-Driven-Clause-Learning/)
 

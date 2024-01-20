@@ -1,4 +1,6 @@
-# MQGPU
+---
+title: "MQGPU"
+---
 
 ## MQ系统解的个数
 

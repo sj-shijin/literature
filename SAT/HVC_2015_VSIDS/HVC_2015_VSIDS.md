@@ -1,4 +1,6 @@
-# Understanding VSIDS Branching Heuristics in Conﬂict-Driven Clause-Learning SAT Solvers
+---
+title: "Understanding VSIDS Branching Heuristics in Conﬂict-Driven Clause-Learning SAT Solvers"
+---
 
 HVC 2015
 

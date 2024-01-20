@@ -1,4 +1,6 @@
-# Efficient Stepping Algorithms and Implementations for Parallel Shortest Paths
+---
+title: "Efficient Stepping Algorithms and Implementations for Parallel Shortest Paths"
+---
 
 SPAA 2021
 
